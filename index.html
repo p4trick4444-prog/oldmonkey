@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>朕天下｜戰神賽特專屬外掛選房</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{
+    margin:0;
+    padding:20px 20px 120px;
+    font-family:"Microsoft JhengHei",Arial,sans-serif;
+    background:#000;
+    color:#fff;
+    overflow-x:hidden;
+}
+
+/* ===== 畫面震動 ===== */
+@keyframes screenShake{
+    0%{transform:translate(0,0);}
+    20%{transform:translate(-8px,6px);}
+    40%{transform:translate(7px,-6px);}
+    60%{transform:translate(-6px,4px);}
+    80%{transform:translate(5px,-3px);}
+    100%{transform:translate(0,0);}
+}
+.shake{ animation:screenShake .35s ease; }
+
+/* ===== 背景 ===== */
+#bgCanvas{
+    position:fixed;
+    inset:0;
+    z-index:-2;
+}
+
+/* ===== Logo ===== */
+.logo{
+    position:fixed;
+    top:20px;
+    z-index:5;
+}
+#logoLeft{ left:20px; width:450px; }
+#logoRight{ right:20px; width:320px; }
+
+/* ===== 容器 ===== */
+.container{
+    max-width:1100px;
+    margin:auto;
+    text-align:center;
+}
+
+h1{
+    font-size:34px;
+    margin-bottom:30px;
+    color:#FFD306;
+}
+
+/* ===== 香蕉按鈕 ===== */
+.banana-sticker{
+    position:relative;
+    width:260px;
+    height:92px;
+    background:linear-gradient(145deg,#fff6b3,#FFD306,#eab000);
+    border-radius:140px;
+    cursor:pointer;
+    border:5px solid #e0a800;
+    box-shadow:0 12px 0 #c79100,0 22px 36px rgba(0,0,0,.55);
+    animation:bananaBreath 3s ease-in-out infinite;
+}
+.banana-sticker span{
+    display:block;
+    line-height:92px;
+    font-size:20px;
+    font-weight:900;
+    color:#5b3a00;
+}
+@keyframes bananaBreath{
+    0%,100%{transform:scale(1);}
+    50%{transform:scale(1.05);}
+}
+
+.btn-row{
+    display:flex;
+    justify-content:center;
+    gap:40px;
+    margin-bottom:36px;
+    flex-wrap:wrap;
+}
+
+/* ===== 房間 ===== */
+.slot-container{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:22px;
+}
+.slot{
+    padding:26px;
+    border-radius:18px;
+    background:rgba(0,0,0,.85);
+    display:flex;
+    justify-content:space-between;
+    font-weight:bold;
+    opacity:0;
+    transform:translateY(20px);
+    animation:slotIn .4s forwards;
+}
+@keyframes slotIn{
+    to{opacity:1;transform:none;}
+}
+.slot.top{
+    color:#FFD306;
+    border:3px solid #FFD306;
+    box-shadow:0 0 60px #FFD306;
+    animation:slotIn .4s forwards, jackpotPulse 1.2s infinite;
+}
+@keyframes jackpotPulse{
+    0%,100%{transform:scale(1);}
+    50%{transform:scale(1.15);}
+}
+.slot.second{
+    color:#ffe680;
+    border:2px solid #ffe680;
+}
+.slot.normal{
+    color:#aaa;
+    border:2px solid #333;
+}
+</style>
+</head>
+
+<body>
+<canvas id="bgCanvas"></canvas>
+
+<img src="logo.png" class="logo" id="logoLeft">
+<img src="logo2.png" class="logo" id="logoRight">
+
+<div class="container" id="screen">
+    <h1 id="title">朕天下猴王專屬｜戰神賽特 II 外掛選房</h1>
+
+    <div class="btn-row">
+        <div class="banana-sticker" onclick="refresh()"><span>更新數據</span></div>
+        <div class="banana-sticker" onclick="toggleVer()"><span>切換版本</span></div>
+    </div>
+
+    <div id="slots" class="slot-container"></div>
+</div>
+
+<script>
+/* ===== Canvas 掉落特效（原樣保留） ===== */
+const canvas=document.getElementById("bgCanvas");
+const ctx=canvas.getContext("2d");
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
+resize();addEventListener("resize",resize);
+
+function sprite(e,s){
+    const c=document.createElement("canvas");
+    const x=c.getContext("2d");
+    c.width=c.height=s;
+    x.font=s+"px emoji";
+    x.textAlign="center";
+    x.textBaseline="middle";
+    x.fillText(e,s/2,s/2);
+    return c;
+}
+const bananaSprite=sprite("🍌",64);
+const leafSprite=sprite("🍃",48);
+
+let bananas=[],leaves=[];
+function spawnBanana(){return{x:Math.random()*canvas.width,y:-100,s:6+Math.random()*4,r:Math.random()*6,rs:.2};}
+function spawnLeaf(){return{x:Math.random()*canvas.width,y:-100,s:4+Math.random()*3,r:Math.random()*6,rs:(Math.random()-.5)*.3};}
+
+function shake(){
+    const s=document.getElementById("screen");
+    s.classList.remove("shake"); void s.offsetWidth; s.classList.add("shake");
+}
+
+function resetFall(){
+    bananas=[];leaves=[];
+    for(let i=0;i<70;i++)bananas.push(spawnBanana());
+    for(let i=0;i<50;i++)leaves.push(spawnLeaf());
+    shake();
+}
+
+function animate(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    leaves.forEach(l=>{
+        ctx.save();ctx.translate(l.x,l.y);ctx.rotate(l.r);
+        ctx.drawImage(leafSprite,-24,-24);ctx.restore();
+        l.y+=l.s;l.r+=l.rs;
+    });
+    leaves=leaves.filter(l=>l.y<canvas.height+100);
+
+    bananas.forEach(b=>{
+        ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.r);
+        ctx.drawImage(bananaSprite,-32,-32);ctx.restore();
+        b.y+=b.s;b.r+=b.rs;
+        if(b.y>canvas.height+150)Object.assign(b,spawnBanana());
+    });
+    requestAnimationFrame(animate);
+}
+
+/* ===== 房號唯一池（唯一新增） ===== */
+let roomPool=[];
+function resetRoomPool(){
+    roomPool=[];
+    for(let i=1;i<=3000;i++) roomPool.push(i);
+    roomPool.sort(()=>Math.random()-.5);
+}
+function getRooms(n){
+    if(roomPool.length<n) resetRoomPool();
+    return roomPool.splice(0,n);
+}
+resetRoomPool();
+
+/* ===== 房間資料（原邏輯） ===== */
+let version="II";
+const title=document.getElementById("title");
+
+function genSlots(){
+    let a=[];
+    for(let i=0;i<3;i++)a.push({t:"top",p:85+Math.random()*10|0});
+    for(let i=0;i<7;i++)a.push({t:"second",p:70+Math.random()*15|0});
+    while(a.length<24)a.push({t:"normal",p:Math.random()*69|0});
+    return a.sort(()=>Math.random()-.5);
+}
+
+function refresh(){
+    resetFall();
+    const slots=document.getElementById("slots");
+    slots.innerHTML="";
+    const rooms=getRooms(24);
+    genSlots().forEach((d,i)=>{
+        const s=document.createElement("div");
+        s.className="slot "+d.t;
+        s.innerHTML=`<span>第 ${rooms[i]} 房</span><span>爆分機率 ${d.p}%</span>`;
+        slots.appendChild(s);
+    });
+}
+
+function toggleVer(){
+    version=version==="II"?"I":"II";
+    title.textContent=`朕天下猴王專屬｜戰神賽特 ${version} 外掛選房`;
+    refresh();
+}
+
+/* ===== 啟動 ===== */
+resetFall();
+animate();
+refresh();
+</script>
+</body>
+</html>
